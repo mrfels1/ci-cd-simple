@@ -1,19 +1,18 @@
 pipeline {
   agent any
   options { timestamps(); disableConcurrentBuilds() }
-
-  parameters {
-    choice(name: 'DEPLOY_ENV', choices: ['dev','staging','prod'], description: 'Среда деплоя')
-  }
+  parameters { choice(name: 'DEPLOY_ENV', choices: ['dev','staging','prod']) }
 
   stages {
-    stage('Checkout') {
-      steps { checkout scm }
+    stage('Init (clean)') {
+      steps { deleteDir() }  // чистый старт
     }
+
+    stage('Checkout') { steps { checkout scm } }
 
     stage('Build') {
       steps {
-        bat 'mkdir dist'
+        bat 'if not exist dist mkdir dist'
         script {
           writeFile file: 'dist/app.txt',
                    text: "hello, build at ${new Date().format('yyyy-MM-dd HH:mm:ss')}\n"
@@ -23,7 +22,7 @@ pipeline {
 
     stage('Test') {
       steps {
-        bat 'mkdir reports'
+        bat 'if not exist reports mkdir reports'
         script {
           writeFile file: 'reports/junit-sim.xml', text: '''<?xml version="1.0" encoding="UTF-8"?>
 <testsuite name="simulated" tests="2" failures="0" errors="0" time="0.0">
@@ -36,11 +35,7 @@ pipeline {
       }
     }
 
-    stage('Package') {
-      steps {
-        archiveArtifacts artifacts: 'dist/**', fingerprint: true
-      }
-    }
+    stage('Package') { steps { archiveArtifacts artifacts: 'dist/**', fingerprint: true } }
 
     stage('Approve PROD') {
       when { expression { params.DEPLOY_ENV == 'prod' } }
@@ -58,7 +53,5 @@ pipeline {
     }
   }
 
-  post {
-    always { archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true }
-  }
+  post { always { archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true } }
 }
